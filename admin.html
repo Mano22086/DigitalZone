@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DigitalZone | لوحة الإدارة الخاصة</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#09070f;--panel:#151020;--panel2:#1e1530;--purple:#a855f7;--pink:#e879f9;--text:#f7f2ff;--muted:#b6a9c9;--line:#332342;--ok:#4ade80;--warn:#fbbf24}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#241036 0,#09070f 55%);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+header{position:sticky;top:0;background:#0c0814eF;backdrop-filter:blur(14px);border-bottom:1px solid var(--line);z-index:2}
+.wrap{width:min(1100px,92%);margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0}.brand{font-weight:900;font-size:24px;letter-spacing:.3px}.brand span{color:var(--pink)}button,.btn{border:0;border-radius:12px;padding:11px 15px;background:linear-gradient(135deg,var(--purple),#7c3aed);color:white;font-weight:800;cursor:pointer}button.secondary{background:#241a32;border:1px solid var(--line)}button:disabled{opacity:.45;cursor:not-allowed}
+.hero{padding:38px 0 22px}.hero h1{font-size:clamp(28px,5vw,46px);line-height:1.2;margin:0 0 12px}.hero p,.muted{color:var(--muted);line-height:1.8}.pill{display:inline-block;padding:6px 10px;border:1px solid #603b7c;border-radius:999px;color:#e9b7ff;font-size:12px;margin-bottom:12px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}.toolbar input,.field input,.field textarea,.field select{width:100%;background:#0e0a16;color:var(--text);border:1px solid var(--line);border-radius:11px;padding:12px;font:inherit}.toolbar input{max-width:360px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:18px 0 34px}.card,.panel{background:linear-gradient(160deg,#191126,#100c18);border:1px solid var(--line);border-radius:18px;padding:18px}.product-icon{height:120px;border-radius:13px;background:linear-gradient(135deg,#3b1d59,#1c1230);display:grid;place-items:center;font-size:42px;margin-bottom:14px}.category{font-size:12px;color:#d8a8ff}.price{font-size:23px;font-weight:900;margin:10px 0}.product h3{margin:6px 0}.product p{font-size:14px;color:var(--muted);min-height:48px;line-height:1.7}
+section{padding-bottom:18px}.hidden{display:none!important}.modal{position:fixed;inset:0;background:#000b;display:grid;place-items:center;padding:16px;z-index:5}.modal .panel{width:min(500px,100%);max-height:90vh;overflow:auto}.field{margin:12px 0}.field label{display:block;margin:0 0 6px;color:#e7d8f7;font-size:14px}.msg{padding:12px;border-radius:12px;background:#211832;margin:12px 0;white-space:pre-wrap}.msg.error{border:1px solid #9f4545}.msg.success{border:1px solid #276749}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row>*{flex:1}.order{border-bottom:1px solid var(--line);padding:12px 0}.status{font-size:12px;color:var(--warn)}footer{border-top:1px solid var(--line);padding:22px 0;color:var(--muted);font-size:13px;margin-top:20px}
+@media(max-width:560px){.top{align-items:flex-start}.brand{font-size:21px}.hero{padding-top:26px}.card,.panel{padding:15px}}
+
+/* Standalone owner dashboard: storefront remains available in index.html */
+body.admin-only main>.hero, body.admin-only main>section:not(#adminPanel), body.admin-only footer, body.admin-only #ordersBtn, body.admin-only #checkoutModal {display:none!important}
+body.admin-only header{position:relative}
+body.admin-only #adminPanel{margin:24px auto}
+body.admin-only .brand:after{content:" • لوحة الإدارة";font-size:13px;color:var(--muted);letter-spacing:0}
+@media(max-width:560px){body.admin-only #adminPanel{padding:12px}}
+</style>
+</head>
+<body class="admin-only">
+<header><div class="wrap top"><div class="brand">Digital<span>Zone</span></div><div class="row" style="flex:0 1 auto"><button class="secondary" id="ordersBtn">طلباتي</button><button id="authBtn">دخول / حساب جديد</button></div></div></header>
+<main class="wrap">
+<div id="adminAccessMessage" class="panel" style="margin:24px auto"><h1>لوحة إدارة DigitalZone</h1><p class="muted">سجّل الدخول بحساب المدير المعتمد فقط. المنتجات والأسعار وتكاليف الموردين والطلبات تُدار من هنا.</p><button id="adminLoginPrompt">تسجيل الدخول للمدير</button><p class="muted">لو دخلت بحساب مش موجود في صلاحيات الإدارة، مش هتظهر بيانات الإدارة.</p></div>
+<div class="hero"><span class="pill">متجرك الرقمي — نسخة تجريبية متصلة بقاعدة البيانات</span><h1>اشتراكاتك الرقمية،<br><span style="color:var(--pink)">بخطوات بسيطة.</span></h1><p>اختار المنتج، ابعت طلبك، وبعدها حوّل المبلغ بالطريقة المعروضة وتابع حالة الطلب من حسابك. تأكيد الدفع بيتم يدويًا بعد المراجعة.</p></div>
+<div id="notice" class="msg hidden"></div>
+<section><div class="toolbar"><input id="search" placeholder="دور على منتج..." aria-label="بحث عن منتج"><button class="secondary" id="refreshBtn">تحديث المنتجات</button></div><div id="products" class="grid"><div class="panel">جاري تحميل المنتجات...</div></div></section>
+<section id="myOrders" class="panel hidden"><div class="row"><h2 style="margin:0">طلباتي</h2><button class="secondary" id="closeOrders">إخفاء</button></div><div id="ordersList" class="muted">سجّل الدخول لعرض طلباتك.</div></section>
+<section id="adminPanel" class="panel hidden"><h2>لوحة الإدارة</h2><p class="muted">تظهر فقط لحساب موجود في جدول admin_profiles. راجع التحويل قبل تأكيد أي طلب.</p><div id="adminStats" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:12px 0"><div class="card">جاري تجهيز الملخص...</div></div><div class="row"><button id="loadAdmin" class="secondary">تحديث الطلبات</button><button id="loadAdminProducts" class="secondary">تحديث المنتجات</button></div><div id="adminOrders"></div><hr style="border-color:var(--line);margin:24px 0"><h2>إدارة الكتالوج</h2><p class="muted">عدّل السعر والاسم والتصنيف والمدة والصورة وتكلفة المورد. تكلفة المورد محفوظة في جدول خاص بالمدير ولا تظهر للعملاء. المنتج يفضل مخفي لحد ما تراجع بياناته وتفعّله.</p><div class="field"><label>بحث في المنتجات</label><input id="adminProductSearch" placeholder="ابحث بالاسم أو التصنيف أو slug"></div><div class="panel" style="margin:14px 0"><h3>إضافة منتج جديد</h3><div class="field"><label>اسم المنتج</label><input id="newProductName" placeholder="اسم واضح للمنتج"></div><div class="row"><div class="field"><label>التصنيف</label><input id="newProductCategory" placeholder="مثال: ذكاء اصطناعي"></div><div class="field"><label>المدة / الباقة</label><input id="newProductDuration" placeholder="مثال: شهر"></div></div><div class="row"><div class="field"><label>سعر البيع (جنيه)</label><input id="newProductPrice" type="number" min="0" step="0.01" value="0"></div><div class="field"><label>تكلفة المورد (جنيه، للمدير فقط)</label><input id="newProductCost" type="number" min="0" step="0.01" value="0"></div></div><div class="field"><label>رابط صورة المنتج (اختياري)</label><input id="newProductImage" type="url" placeholder="https://..."></div><div class="field"><label>وصف المنتج</label><textarea id="newProductDescription" rows="2" placeholder="تفاصيل المنتج وشروطه"></textarea></div><button id="createProduct">إضافة المنتج كمسودة مخفية</button><div id="newProductMessage" class="msg hidden"></div></div><div id="adminProducts"><div class="muted">اضغط تحديث المنتجات لعرض الكتالوج.</div></div></section>
+</main>
+<footer><div class="wrap">DigitalZone • نموذج أولي — استخدم فقط منتجات عندك حق قانوني في إعادة بيعها. لا ترسل كلمة مرورك أو بيانات البطاقة لأي شخص.</div></footer>
+
+<div id="authModal" class="modal hidden"><div class="panel"><div class="row"><h2 id="authTitle">تسجيل الدخول</h2><button class="secondary" id="closeAuth">إغلاق</button></div><div id="authMessage" class="msg hidden"></div><div class="field"><label>البريد الإلكتروني</label><input id="email" type="email" autocomplete="email" placeholder="name@example.com"></div><div class="field"><label>كلمة المرور</label><input id="password" type="password" autocomplete="current-password" placeholder="8 أحرف أو أكثر"></div><div class="field" id="nameField"><label>الاسم (للحساب الجديد)</label><input id="fullName" placeholder="اسمك"></div><div class="row"><button id="submitAuth">دخول</button><button class="secondary" id="toggleAuth">إنشاء حساب</button></div><p class="muted">لو إعدادات المشروع بتطلب تأكيد البريد، افتح رسالة التأكيد قبل تسجيل الدخول.</p></div></div>
+
+<div id="checkoutModal" class="modal hidden"><div class="panel"><div class="row"><h2>إتمام الطلب</h2><button class="secondary" id="closeCheckout">إغلاق</button></div><div id="checkoutProduct" class="msg"></div><div class="field"><label>الاسم</label><input id="customerName" placeholder="الاسم بالكامل"></div><div class="field"><label>رقم تواصل (اختياري)</label><input id="customerPhone" inputmode="tel" placeholder="01xxxxxxxxx"></div><div class="msg"><b>طريقة الدفع: محفظة فودافون كاش</b><p style="margin:8px 0">حوّل المبلغ إلى رقم المحفظة الرسمي للمتجر:</p><div class="row" style="align-items:center"><strong dir="ltr" style="font-size:22px">01146797153</strong><button class="secondary" type="button" id="copyWallet">نسخ الرقم</button></div><p class="muted" style="margin-bottom:0">اتأكد من اسم المستلم والمبلغ قبل التأكيد، واحتفظ بإيصال التحويل. لا ترسل الرقم السري أو كود OTP.</p></div>
+<div class="field"><label>رقم الموبايل اللي حوّلت منه (إجباري)</label><input id="senderPhone" inputmode="tel" placeholder="01xxxxxxxxx" maxlength="11"></div>
+<div class="field"><label>رقم عملية التحويل (لو ظاهر في الإيصال)</label><input id="paymentReference" placeholder="رقم العملية / المرجع"></div>
+<div class="field"><label>صورة تأكيد التحويل (إجباري، JPG أو PNG أو WebP بحد أقصى 5 ميجا)</label><input id="paymentScreenshot" type="file" accept="image/jpeg,image/png,image/webp" required><div id="screenshotPreview" class="muted"></div></div>
+<div class="field"><label>تحب نستلمك الخدمة فين؟</label><select id="deliveryMethod"><option value="whatsapp">واتساب</option><option value="email">البريد الإلكتروني</option></select></div>
+<div class="field"><label id="deliveryDestinationLabel">رقم واتساب لاستلام الخدمة</label><input id="deliveryDestination" placeholder="رقم واتساب مع مفتاح الدولة لو أمكن" required></div>
+<div class="field"><label>ملاحظة (اختياري، بدون بيانات سرية)</label><textarea id="customerNote" rows="2" placeholder="أي تفاصيل لازمة للطلب"></textarea></div>
+<div class="msg">بعد إرسال الطلب، المراجعة بتستغرق حتى 10 دقائق في أوقات العمل. لو التحويل اتأكد، هنبعتلك الخدمة بالطريقة اللي اخترتها. إرسال الطلب مش معناه تأكيد الدفع تلقائيًا.</div><div id="checkoutMessage" class="msg hidden"></div><button id="placeOrder" style="width:100%">إنشاء الطلب</button><p class="muted">إنشاء الطلب لا يعني إن الدفع اتأكد. ما تحولش إلا بعد ما تتأكد من تعليمات الدفع الرسمية للمتجر.</p></div></div>
+<script>
+const SUPABASE_URL = "https://smwbaohdcacfzebcxmlc.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_1-KiFlUYGXKh-R6qNiPTeA_SHU8TzCd";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let products = [], selectedProduct = null, isSignup = false, currentUser = null, isAdmin = false, adminProductsCache = [], adminCosts = {};
+const $ = id => document.getElementById(id);
+function showMsg(id, text, type=""){const el=$(id);el.textContent=text;el.className="msg"+(type?" "+type:"");el.classList.remove("hidden")}
+function hideMsg(id){$(id).classList.add("hidden")}
+function money(n){return new Intl.NumberFormat("ar-EG",{style:"currency",currency:"EGP",maximumFractionDigits:2}).format(Number(n||0))}
+function safe(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function notice(text,type=""){showMsg("notice",text,type);window.scrollTo({top:0,behavior:"smooth"})}
+async function loadProducts(){
+ $("products").innerHTML='<div class="panel">جاري تحميل المنتجات...</div>';
+ const {data,error}=await db.from("products").select("id,name,category,description,price,image_url,duration,stock_status").eq("is_active",true).order("created_at",{ascending:false});
+ if(error){$("products").innerHTML='<div class="panel">تعذر تحميل المنتجات. راجع اتصال قاعدة البيانات وسياسات RLS.</div>';return}
+ products=data||[]; renderProducts();
+}
+function renderProducts(){
+ const term=$("search").value.trim().toLowerCase();
+ const shown=products.filter(p=>[p.name,p.category,p.description].join(" ").toLowerCase().includes(term));
+ if(!shown.length){$("products").innerHTML='<div class="panel">مفيش منتجات منشورة حاليًا. أضف منتجات من قاعدة البيانات بعد تحديد الاسم والسعر وحق إعادة البيع.</div>';return}
+ $("products").innerHTML=shown.map(p=>`<article class="card product"><div class="product-icon">${p.image_url?`<img src="${safe(p.image_url)}" alt="" style="width:100%;height:120px;object-fit:cover;border-radius:13px">`:"✦"}</div><div class="category">${safe(p.category)}</div><h3>${safe(p.name)}</h3><p>${safe(p.description)}</p>${p.duration?`<div class="muted">المدة: ${safe(p.duration)}</div>`:""}<div class="price">${money(p.price)}</div><button style="width:100%" data-buy="${p.id}">اطلب دلوقتي</button></article>`).join("");
+ document.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>beginCheckout(b.dataset.buy));
+}
+async function refreshUser(){
+ const {data}=await db.auth.getUser();currentUser=data?.user||null;
+ $("authBtn").textContent=currentUser?"حسابي / خروج":"دخول / حساب جديد";
+ isAdmin=false;
+ if(currentUser){const {data:admin}=await db.from("admin_profiles").select("user_id").eq("user_id",currentUser.id).maybeSingle();isAdmin=!!admin}
+ $("adminPanel").classList.toggle("hidden",!isAdmin);$("adminAccessMessage").classList.toggle("hidden",isAdmin);if(isAdmin){loadAdminOrders();loadAdminProducts()}else if(currentUser){$("adminAccessMessage").querySelector("p").textContent="الحساب الحالي مش مضاف لصلاحيات الإدارة. سجّل الخروج وادخل بحساب المدير المعتمد."}
+}
+function slugify(text){return String(text||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9\u0600-\u06ff]+/g,"-").replace(/^-+|-+$/g,"")||("product-"+Date.now())}
+function adminProductCard(p){const cost=Number(adminCosts[p.id]||0),price=Number(p.price||0);return `<div class="order admin-product" data-product="${p.id}"><div class="row"><b>${safe(p.name)}</b><span class="status">${p.is_active?"منشور":"مسودة مخفية"} • ${safe(p.stock_status||"unavailable")}</span></div><div class="field"><label>اسم المنتج</label><input data-field="name" value="${safe(p.name)}"></div><div class="field"><label>Slug (رابط داخلي فريد)</label><input data-field="slug" value="${safe(p.slug)}"></div><div class="row"><div class="field"><label>التصنيف</label><input data-field="category" value="${safe(p.category||"")}"></div><div class="field"><label>المدة / الباقة</label><input data-field="duration" value="${safe(p.duration||"")}"></div></div><div class="field"><label>الوصف</label><textarea data-field="description" rows="2">${safe(p.description||"")}</textarea></div><div class="field"><label>رابط الصورة</label><input data-field="image_url" type="url" value="${safe(p.image_url||"")}" placeholder="https://..."></div><div class="row"><div class="field"><label>سعر البيع (جنيه)</label><input data-field="price" type="number" min="0" step="0.01" value="${price}"></div><div class="field"><label>تكلفة المورد (جنيه — خاصة بالمدير)</label><input data-field="supplier_cost" type="number" min="0" step="0.01" value="${cost}"></div></div><div class="row"><div class="field"><label>حالة المخزون</label><select data-field="stock_status"><option value="available" ${p.stock_status==="available"?"selected":""}>متاح</option><option value="limited" ${p.stock_status==="limited"?"selected":""}>محدود</option><option value="unavailable" ${p.stock_status==="unavailable"?"selected":""}>غير متاح</option></select></div><div class="field"><label>النشر</label><select data-field="is_active"><option value="false" ${!p.is_active?"selected":""}>مخفي</option><option value="true" ${p.is_active?"selected":""}>منشور</option></select></div></div><div class="msg">هامش الربح التقديري: <b>${money(price-cost)}</b> (سعر البيع − تكلفة المورد)</div><button data-save-product="${p.id}">حفظ التعديلات</button><div class="muted" data-product-message="${p.id}"></div></div>`}
+async function loadAdminProducts(){if(!isAdmin){notice("إدارة المنتجات للمدير فقط.");return}const box=$("adminProducts");box.innerHTML='<div class="muted">جاري تحميل الكتالوج...</div>';const {data,error}=await db.from("products").select("id,name,slug,category,description,price,compare_at_price,image_url,duration,is_active,stock_status,created_at").order("created_at",{ascending:false}).limit(500);if(error){box.textContent="تعذر تحميل المنتجات. راجع صلاحيات المدير.";return}adminProductsCache=data||[];renderAdminStats();const {data:costRows,error:costError}=await db.from("product_costs").select("product_id,supplier_cost");if(costError){box.textContent="تعذر تحميل تكاليف المورد من جدول المدير الخاص.";return}adminCosts={};(costRows||[]).forEach(c=>adminCosts[c.product_id]=Number(c.supplier_cost||0));renderAdminProducts()}
+function renderAdminStats(){
+ const all=adminProductsCache.length,active=adminProductsCache.filter(p=>p.is_active).length,drafts=all-active,zero=adminProductsCache.filter(p=>Number(p.price||0)<=0).length,unavailable=adminProductsCache.filter(p=>p.stock_status==="unavailable").length;
+ const cards=[ ["إجمالي المنتجات",all], ["منشور",active], ["مسودات مخفية",drafts], ["بدون سعر",zero], ["غير متاح",unavailable] ];
+ $("adminStats").innerHTML=cards.map(([label,value])=>`<div class="card"><div class="muted">${label}</div><div style="font-size:28px;font-weight:900;color:var(--pink);margin-top:6px">${value}</div></div>`).join("");
+}
+function renderAdminProducts(){const term=$("adminProductSearch").value.trim().toLowerCase();const shown=adminProductsCache.filter(p=>[p.name,p.category,p.slug].join(" ").toLowerCase().includes(term));$("adminProducts").innerHTML=shown.length?shown.map(adminProductCard).join(""):'<div class="muted">مفيش نتائج مطابقة.</div>';document.querySelectorAll("[data-save-product]").forEach(b=>b.onclick=()=>saveAdminProduct(b.dataset.saveProduct,b));document.querySelectorAll("[data-field]").forEach(el=>el.addEventListener("input",()=>{const card=el.closest("[data-product]");if(card){const price=Number(card.querySelector('[data-field="price"]').value||0),cost=Number(card.querySelector('[data-field="supplier_cost"]').value||0);const msg=card.querySelector(".msg");msg.innerHTML='هامش الربح التقديري: <b>'+safe(money(price-cost))+'</b> (سعر البيع − تكلفة المورد)';}}))}
+async function saveAdminProduct(id,button){if(!isAdmin)return;const card=document.querySelector(`[data-product="${id}"]`);if(!card)return;const val=f=>card.querySelector(`[data-field="${f}"]`)?.value;const price=Number(val("price")),cost=Number(val("supplier_cost"));if(!Number.isFinite(price)||price<0||!Number.isFinite(cost)||cost<0){notice("السعر والتكلفة لازم يكونوا أرقام موجبة أو صفر.","error");return}const active=val("is_active")==="true";if(active&&(price<=0||val("stock_status")==="unavailable")){notice("مينفعش تنشر منتج سعره صفر أو حالته غير متاح.","error");return}button.disabled=true;const msg=card.querySelector(`[data-product-message="${id}"]`);try{const update={name:val("name").trim(),slug:val("slug").trim(),category:val("category").trim()||"اشتراكات رقمية",duration:val("duration").trim()||null,description:val("description").trim(),image_url:val("image_url").trim()||null,price,stock_status:val("stock_status"),is_active:active,updated_at:new Date().toISOString()};if(!update.name||!update.slug)throw new Error("اسم المنتج والـ slug مطلوبين.");const {error}=await db.from("products").update(update).eq("id",id);if(error)throw error;const {error:costError}=await db.from("product_costs").upsert({product_id:id,supplier_cost:cost,updated_by:currentUser.id,updated_at:new Date().toISOString()},{onConflict:"product_id"});if(costError)throw costError;if(msg)msg.textContent="اتحفظت التعديلات.";adminCosts[id]=cost;await loadProducts();await loadAdminProducts();notice("تم حفظ بيانات المنتج والتكلفة الخاصة بالمدير.","success")}catch(e){if(msg)msg.textContent="فشل الحفظ: "+(e.message||"خطأ غير معروف")}finally{button.disabled=false}}
+async function createAdminProduct(){if(!isAdmin)return;const name=$("newProductName").value.trim(),category=$("newProductCategory").value.trim()||"اشتراكات رقمية",duration=$("newProductDuration").value.trim(),price=Number($("newProductPrice").value||0),cost=Number($("newProductCost").value||0),imageUrl=$("newProductImage").value.trim(),description=$("newProductDescription").value.trim();if(!name){showMsg("newProductMessage","اكتب اسم المنتج.","error");return}if(price<0||cost<0||!Number.isFinite(price)||!Number.isFinite(cost)){showMsg("newProductMessage","راجع السعر والتكلفة.","error");return}const slug=slugify(name)+"-"+Math.random().toString(36).slice(2,6);const {data,error}=await db.from("products").insert({name,slug,category,duration:duration||null,price,description,image_url:imageUrl||null,is_active:false,stock_status:"unavailable"}).select("id").single();if(error){showMsg("newProductMessage","تعذرت الإضافة: "+error.message,"error");return}const {error:costError}=await db.from("product_costs").upsert({product_id:data.id,supplier_cost:cost,updated_by:currentUser.id});if(costError){showMsg("newProductMessage","المنتج اتضاف كمسودة لكن تعذر حفظ تكلفة المورد: "+costError.message,"error");return}showMsg("newProductMessage","اتضاف المنتج كمسودة مخفية. راجع التوفر والسعر وحق إعادة البيع قبل نشره.","success");["newProductName","newProductCategory","newProductDuration","newProductImage","newProductDescription"].forEach(id=>$(id).value="");$("newProductPrice").value="0";$("newProductCost").value="0";await loadAdminProducts()}
+function beginCheckout(id){
+ selectedProduct=products.find(p=>p.id===id);if(!selectedProduct)return;
+ if(!currentUser){$("authModal").classList.remove("hidden");notice("سجّل الدخول أو أنشئ حساب الأول علشان نقدر نربط الطلب بحسابك.");return}
+ $("checkoutProduct").textContent=`${selectedProduct.name} — ${money(selectedProduct.price)}`;
+ $("customerName").value=currentUser.user_metadata?.full_name||"";
+ hideMsg("checkoutMessage");$("senderPhone").value="";$("paymentReference").value="";$("paymentScreenshot").value="";$("screenshotPreview").textContent="";$("deliveryMethod").value="whatsapp";$("deliveryDestination").value=$("customerPhone").value.trim();updateDeliveryLabel();$("checkoutModal").classList.remove("hidden");
+}
+$("authBtn").onclick=async()=>{if(currentUser){if(confirm("تسجيل الخروج من الحساب؟")){await db.auth.signOut();await refreshUser();notice("تم تسجيل الخروج.");} }else{$("authModal").classList.remove("hidden")}};
+$("adminLoginPrompt").onclick=()=>$("authModal").classList.remove("hidden");
+$("closeAuth").onclick=()=>$("authModal").classList.add("hidden");
+$("toggleAuth").onclick=()=>{isSignup=!isSignup;$("authTitle").textContent=isSignup?"إنشاء حساب جديد":"تسجيل الدخول";$("submitAuth").textContent=isSignup?"إنشاء الحساب":"دخول";$("toggleAuth").textContent=isSignup?"عندي حساب بالفعل":"إنشاء حساب";$("nameField").classList.toggle("hidden",!isSignup);hideMsg("authMessage")};
+$("submitAuth").onclick=async()=>{
+ const email=$("email").value.trim(),password=$("password").value;
+ if(!email||password.length<8){showMsg("authMessage","اكتب بريد صحيح وكلمة مرور من 8 أحرف على الأقل.","error");return}
+ $("submitAuth").disabled=true;
+ let result;
+ if(isSignup) result=await db.auth.signUp({email,password,options:{data:{full_name:$("fullName").value.trim()}}});
+ else result=await db.auth.signInWithPassword({email,password});
+ $("submitAuth").disabled=false;
+ if(result.error){showMsg("authMessage",result.error.message,"error");return}
+ if(isSignup&&!result.data.session){showMsg("authMessage","الحساب اتعمل. افتح رسالة تأكيد البريد ثم ارجع سجّل الدخول.","success");return}
+ await refreshUser();$("authModal").classList.add("hidden");notice("تم تسجيل الدخول.");if(selectedProduct)beginCheckout(selectedProduct.id);
+};
+$("closeCheckout").onclick=()=>$("checkoutModal").classList.add("hidden");
+function updateDeliveryLabel(){const isEmail=$("deliveryMethod").value==="email";$("deliveryDestinationLabel").textContent=isEmail?"البريد الإلكتروني لاستلام الخدمة":"رقم واتساب لاستلام الخدمة";$("deliveryDestination").placeholder=isEmail?"name@example.com":"رقم واتساب مع مفتاح الدولة لو أمكن";$("deliveryDestination").type=isEmail?"email":"tel"}
+$("deliveryMethod").onchange=updateDeliveryLabel;
+$("paymentScreenshot").onchange=()=>{const f=$("paymentScreenshot").files?.[0];$("screenshotPreview").textContent=f?`الصورة المختارة: ${f.name} (${(f.size/1024/1024).toFixed(2)} ميجا)`:""};
+$("placeOrder").onclick=async()=>{
+ if(!currentUser){showMsg("checkoutMessage","سجّل الدخول الأول.","error");return}
+ if(!$("customerName").value.trim()) {showMsg("checkoutMessage","اكتب اسمك.","error");return}
+ const senderPhone=$("senderPhone").value.trim(), dest=$("deliveryDestination").value.trim(), file=$("paymentScreenshot").files?.[0];
+ if(!/^01[0-9]{9}$/.test(senderPhone)){showMsg("checkoutMessage","اكتب رقم الموبايل المصري اللي حوّلت منه، 11 رقم ويبدأ بـ 01.","error");return}
+ if(!dest){showMsg("checkoutMessage","اكتب بيانات استلام الخدمة.","error");return}
+ if(!file){showMsg("checkoutMessage","ارفع صورة تأكيد التحويل الأول.","error");return}
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>5*1024*1024){showMsg("checkoutMessage","الصورة لازم تكون JPG أو PNG أو WebP وحجمها 5 ميجا أو أقل.","error");return}
+ $("placeOrder").disabled=true;
+ try{
+  const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";
+  const path=`${currentUser.id}/${crypto.randomUUID()}.${ext}`;
+  const {error:uploadError}=await db.storage.from("order-payment-proofs").upload(path,file,{contentType:file.type,upsert:false});
+  if(uploadError)throw new Error("تعذر رفع صورة التحويل. تأكد من إعداد مساحة رفع الإيصالات ثم حاول تاني: "+uploadError.message);
+  const {data,error}=await db.functions.invoke("create-order",{body:{
+   items:[{product_id:selectedProduct.id,quantity:1}],customer_name:$("customerName").value.trim(),customer_phone:$("customerPhone").value.trim()||null,
+   payment_reference:$("paymentReference").value.trim()||null,customer_note:$("customerNote").value.trim()||null,
+   sender_phone:senderPhone,payment_screenshot_path:path,delivery_method:$("deliveryMethod").value,delivery_destination:dest
+  }});
+  if(error)throw error;
+  $("checkoutModal").classList.add("hidden");notice("تم استلام طلبك. المراجعة تستغرق حتى 10 دقائق في أوقات العمل، وبعد تأكيد التحويل هنبعت الخدمة على وسيلة الاستلام المختارة.","success");await loadOrders();$("myOrders").classList.remove("hidden");
+ }catch(e){showMsg("checkoutMessage","تعذر إنشاء الطلب: "+(e.message||"خطأ غير معروف"),"error")}
+ finally{$("placeOrder").disabled=false}
+};
+
+$("ordersBtn").onclick=async()=>{$("myOrders").classList.remove("hidden");await loadOrders();$("myOrders").scrollIntoView({behavior:"smooth"})};
+$("closeOrders").onclick=()=>$("myOrders").classList.add("hidden");
+async function loadOrders(){
+ if(!currentUser){$("ordersList").textContent="سجّل الدخول لعرض طلباتك.";return}
+ const {data,error}=await db.from("orders").select("id,order_number,total,payment_method,payment_reference,payment_status,order_status,customer_note,sender_phone,delivery_method,delivery_destination,delivery_status,created_at").order("created_at",{ascending:false}).limit(30);
+ if(error){$("ordersList").textContent="تعذر جلب الطلبات.";return}
+ if(!data?.length){$("ordersList").textContent="لسه مفيش طلبات على حسابك.";return}
+ $("ordersList").innerHTML=data.map(o=>`<div class="order"><b>طلب ${safe(o.order_number)}</b><div>${money(o.total)}</div><div class="status">الدفع: ${safe(o.payment_status)} • الطلب: ${safe(o.order_status)}</div>${o.payment_reference?`<div>رقم العملية: ${safe(o.payment_reference)}</div>`:""}${o.customer_note?`<div>ملاحظة: ${safe(o.customer_note)}</div>`:""}${o.delivery_method?`<div>طريقة الاستلام: ${o.delivery_method==="email"?"البريد الإلكتروني":"واتساب"} • ${safe(o.delivery_destination||"")}</div>`:""}<div class="status">المراجعة خلال 10 دقائق في أوقات العمل</div><small class="muted">${new Date(o.created_at).toLocaleString("ar-EG")}</small></div>`).join("");
+}
+$("loadAdmin").onclick=loadAdminOrders;$("loadAdminProducts").onclick=loadAdminProducts;$("adminProductSearch").addEventListener("input",renderAdminProducts);$("createProduct").onclick=createAdminProduct;
+async function loadAdminOrders(){
+ if(!isAdmin){notice("الصفحة دي للمدير فقط.");return}
+ const {data,error}=await db.from("orders").select("id,order_number,customer_name,customer_email,customer_phone,sender_phone,total,payment_status,order_status,payment_reference,payment_screenshot_path,delivery_method,delivery_destination,delivery_status,customer_note,created_at").order("created_at",{ascending:false}).limit(100);
+ if(error){$("adminOrders").textContent="تعذر تحميل الطلبات؛ راجع سياسات RLS.";return}
+ if(!data?.length){$("adminOrders").textContent="لا توجد طلبات حتى الآن.";return}
+ $("adminOrders").innerHTML=data.map(o=>`<div class="order"><b>${safe(o.order_number)} — ${money(o.total)}</b><div>${safe(o.customer_name)} • ${safe(o.customer_email)} • ${safe(o.customer_phone||"بدون رقم")}</div><div>رقم التحويل منه: ${safe(o.sender_phone||"غير مسجل")}</div><div>طريقة التسليم: ${safe(o.delivery_method||"—")} • ${safe(o.delivery_destination||"—")}</div><div class="status">الدفع: ${safe(o.payment_status)} • الطلب: ${safe(o.order_status)}</div>${o.customer_note?`<div>ملاحظة العميل: ${safe(o.customer_note)}</div>`:""}${o.payment_screenshot_path?`<button class="secondary" data-proof="${safe(o.payment_screenshot_path)}">عرض صورة التحويل</button>`:"لا توجد صورة تحويل مسجلة"}<div class="field"><label>مرجع التحويل (لو موجود)</label><input id="ref-${o.id}" value="${safe(o.payment_reference||"")}" placeholder="رقم العملية"></div><div class="row"><button data-review="${o.id}" data-action="confirm">تأكيد بعد المراجعة</button><button class="secondary" data-review="${o.id}" data-action="reject">رفض</button></div></div>`).join("");
+ document.querySelectorAll("[data-proof]").forEach(b=>b.onclick=async()=>{b.disabled=true;try{const {data,error}=await db.storage.from("order-payment-proofs").createSignedUrl(b.dataset.proof,300);if(error)throw error;window.open(data.signedUrl,"_blank","noopener")}catch(e){notice("تعذر فتح صورة التحويل: "+(e.message||"خطأ"),"error")}finally{b.disabled=false}});
+ document.querySelectorAll("[data-review]").forEach(b=>b.onclick=async()=>{
+  const orderId=b.dataset.review,action=b.dataset.action;
+  if(!confirm(action==="confirm"?"هل راجعت التحويل بنفسك وتأكدت من وصول المبلغ؟":"تأكيد رفض الطلب؟"))return;
+  b.disabled=true;
+  try{const {error}=await db.functions.invoke("review-payment",{body:{order_id:orderId,decision:action,admin_note:$("ref-"+orderId)?.value.trim()||null}});
+   if(error)throw error;notice(action==="confirm"?"تم إرسال قرار التأكيد.":"تم إرسال قرار الرفض.","success");await loadAdminOrders();
+  }catch(e){notice("تعذر تحديث الطلب: "+(e.message||"خطأ"),"error")}finally{b.disabled=false}
+ });
+}
+$("search").addEventListener("input",renderProducts);$("refreshBtn").onclick=loadProducts;
+document.addEventListener("click",async e=>{if(e.target?.id==="copyWallet"){try{await navigator.clipboard.writeText("01146797153");e.target.textContent="اتنسخ رقم المحفظة";}catch{e.target.textContent="انسخ الرقم يدويًا: 01146797153";}}});
+db.auth.onAuthStateChange(()=>setTimeout(async()=>{await refreshUser()},0));
+(async()=>{await refreshUser();await loadProducts()})();
+</script>
+</body></html>
